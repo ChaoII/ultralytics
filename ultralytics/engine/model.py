@@ -113,6 +113,7 @@ class Model(nn.Module):
         super().__init__()
         self.callbacks = callbacks.get_default_callbacks()
         self.predictor = None  # reuse predictor
+        self.validator = None  # reuse validator
         self.model = None  # model object
         self.trainer = None  # trainer object
         self.ckpt = {}  # if loaded from *.pt
@@ -634,11 +635,10 @@ class Model(nn.Module):
         """
         custom = {"rect": True}  # method defaults
         args = {**self.overrides, **custom, **kwargs, "mode": "val"}  # highest priority args on the right
-
-        validator = (validator or self._smart_load("validator"))(args=args, _callbacks=self.callbacks)
-        validator(model=self.model)
-        self.metrics = validator.metrics
-        return validator.metrics
+        self.validator = (validator or self._smart_load("validator"))(args=args, _callbacks=self.callbacks)
+        self.validator(model=self.model)
+        self.metrics = self.validator.metrics
+        return self.validator.metrics
 
     def benchmark(
         self,
@@ -807,6 +807,8 @@ class Model(nn.Module):
         # Update model and cfg after training
         if RANK in {-1, 0}:
             ckpt = self.trainer.best if self.trainer.best.exists() else self.trainer.last
+            if not ckpt.exists():
+                return None
             self.model, self.ckpt = attempt_load_one_weight(ckpt)
             self.overrides = self.model.args
             self.metrics = getattr(self.trainer.validator, "metrics", None)  # TODO: no metrics returned by DDP

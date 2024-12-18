@@ -152,7 +152,8 @@ class BaseTrainer:
         # Callbacks
         self.callbacks = _callbacks or callbacks.get_default_callbacks()
         if RANK in {-1, 0}:
-            callbacks.add_integration_callbacks(self)
+            # callbacks.add_integration_callbacks(self)
+            pass
 
     def add_callback(self, event: str, callback):
         """Appends the given callback."""
@@ -415,17 +416,17 @@ class BaseTrainer:
                             batch["img"].shape[-1],  # imgsz, i.e 640
                         )
                     )
+                    self.pdic = pbar.format_dict
                     self.run_callbacks("on_batch_end")
                     if self.args.plots and ni in self.plot_idx:
                         self.plot_training_samples(batch, ni)
-                self.pdic = pbar.format_dict
+
                 self.run_callbacks("on_train_batch_end")
                 if self.interrupt:
                     self.run_callbacks("on_train_end")
                     gc.collect()
                     torch.cuda.empty_cache()
                     return
-
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
             self.run_callbacks("on_train_epoch_end")
             if RANK in {-1, 0}:
@@ -435,7 +436,7 @@ class BaseTrainer:
                 # Validation
                 if self.args.val or final_epoch or self.stopper.possible_stop or self.stop:
                     self.metrics, self.fitness = self.validate()
-                self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
+                # self.save_metrics(metrics={**self.label_loss_items(self.tloss), **self.metrics, **self.lr})
                 self.stop |= self.stopper(epoch + 1, self.fitness) or final_epoch
                 if self.args.time:
                     self.stop |= (time.time() - self.train_time_start) > (self.args.time * 3600)
@@ -471,7 +472,7 @@ class BaseTrainer:
             # Do final val with best.pt
             seconds = time.time() - self.train_time_start
             LOGGER.info(f"\n{epoch - self.start_epoch + 1} epochs completed in {seconds / 3600:.3f} hours.")
-            self.final_eval()
+            # self.final_eval()
             if self.args.plots:
                 self.plot_metrics()
             self.run_callbacks("on_train_end")
@@ -530,7 +531,7 @@ class BaseTrainer:
                 "optimizer": convert_optimizer_state_dict_to_fp16(deepcopy(self.optimizer.state_dict())),
                 "train_args": vars(self.args),  # save as dict
                 "train_metrics": {**self.metrics, **{"fitness": self.fitness}},
-                "train_results": self.read_results_csv(),
+                #"train_results": self.read_results_csv(),
                 "date": datetime.now().isoformat(),
                 "version": __version__,
                 "license": "AGPL-3.0 (https://ultralytics.com/license)",

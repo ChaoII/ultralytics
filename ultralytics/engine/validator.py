@@ -95,7 +95,8 @@ class BaseValidator:
         self.speed = {"preprocess": 0.0, "inference": 0.0, "loss": 0.0, "postprocess": 0.0}
 
         self.save_dir = save_dir or get_save_dir(self.args)
-        (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(parents=True, exist_ok=True)
+        if self.args.plots:
+            (self.save_dir / "labels" if self.args.save_txt else self.save_dir).mkdir(parents=True, exist_ok=True)
         if self.args.conf is None:
             self.args.conf = 0.001  # default conf=0.001
         self.args.imgsz = check_imgsz(self.args.imgsz, max_dim=1)
@@ -157,7 +158,7 @@ class BaseValidator:
 
             model.eval()
             model.warmup(imgsz=(1 if pt else self.args.batch, 3, imgsz, imgsz))  # warmup
-
+        self.batches = len(self.dataloader)
         self.run_callbacks("on_val_start")
         dt = (
             Profile(device=self.device),
@@ -165,12 +166,12 @@ class BaseValidator:
             Profile(device=self.device),
             Profile(device=self.device),
         )
-        bar = TQDM(self.dataloader, desc=self.get_desc(), total=len(self.dataloader))
+        bar = TQDM(self.dataloader, desc=self.get_desc(), total=self.batches)
         self.init_metrics(de_parallel(model))
         self.jdict = []  # empty before each val
         for batch_i, batch in enumerate(bar):
             self.run_callbacks("on_val_batch_start")
-            self.batch_i = batch_i
+            self.batch = batch_i
             # Preprocess
             with dt[0]:
                 batch = self.preprocess(batch)
@@ -198,7 +199,7 @@ class BaseValidator:
         self.check_stats(stats)
         self.speed = dict(zip(self.speed.keys(), (x.t / len(self.dataloader.dataset) * 1e3 for x in dt)))
         self.finalize_metrics()
-        self.print_results()
+        # self.print_results()
         self.run_callbacks("on_val_end")
         if self.training:
             model.float()
