@@ -320,7 +320,7 @@ class BaseTrainer:
         if world_size > 1:
             self._setup_ddp(world_size)
         self._setup_train(world_size)
-
+        self.interrupt = False
         nb = len(self.train_loader)  # number of batches
         nw = max(round(self.args.warmup_epochs * nb), 100) if self.args.warmup_epochs > 0 else -1  # warmup iterations
         last_opt_step = -1
@@ -418,8 +418,13 @@ class BaseTrainer:
                     self.run_callbacks("on_batch_end")
                     if self.args.plots and ni in self.plot_idx:
                         self.plot_training_samples(batch, ni)
-
+                self.pdic = pbar.format_dict
                 self.run_callbacks("on_train_batch_end")
+                if self.interrupt:
+                    self.run_callbacks("on_train_end")
+                    gc.collect()
+                    torch.cuda.empty_cache()
+                    return
 
             self.lr = {f"lr/pg{ir}": x["lr"] for ir, x in enumerate(self.optimizer.param_groups)}  # for loggers
             self.run_callbacks("on_train_epoch_end")
